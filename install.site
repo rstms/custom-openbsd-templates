@@ -1,0 +1,62 @@
+#!/bin/ksh
+
+set -u
+set -e
+
+# Variables
+message="howdy from custom install script"
+
+echo ""
+echo "### CUSTOM INSTALL SCRIPT ###"
+echo ""
+
+#################################
+### PF FIREWALL CONFIGURATION ###
+#################################
+
+## Backup pf firewall configuration
+cp /etc/pf.conf /etc/pf.conf-orig
+
+## Configure pf firewall
+cat <<__EOF> /etc/pf.conf
+# customized pf.conf
+set skip on lo
+
+block return
+pass
+
+block return in on ! lo0 proto tcp to port 6000:6010
+
+block return out log proto {tcp udp} user _pbuild
+
+__EOF
+# End of pf firewall configuration
+
+
+###################################
+### CONFIGURE /etc/rc.firsttime ###
+###################################
+
+# rc.firsttime will run once on the first normal boot
+
+cat <<'__EOF'>> /etc/rc.firsttime
+
+logger $message
+
+# Remove /etc/rc.firsttime.run
+if [[ -f /etc/rc.firsttime.run ]]; then
+  rm /etc/rc.firsttime.run
+fi
+
+# Automatic reboot
+reboot
+
+__EOF
+
+# Remove install.site
+if [[ -f /install.site ]]; then
+  rm -P /install.site
+fi
+
+# Exit script
+exit 0

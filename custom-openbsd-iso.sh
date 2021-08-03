@@ -11,7 +11,7 @@ set -e
 
 # Variables
 system_architecture="amd64" # Use amd64 or i386
-openbsd_release="snapshots" # Use snapshots or a version number, example: 6.2
+openbsd_release="6.9" # Use snapshots or a version number, example: 6.2
 template_file="install.site"
 current_date=$(date +%F)
 custom_iso_dir="/tmp/openbsd/${openbsd_release}/${system_architecture}/"
@@ -20,53 +20,10 @@ custom_iso_filename="custom-openbsd-${openbsd_release}-${system_architecture}-${
 openbsd_homepage="https://www.openbsd.org/"
 openbsd_mirror_file="ftp.html"
 
-# Optional: Tor onion service variables
-onion_service_import="false" # Set to true to import existing onion service backups
-onion_service_create="false" # Set to true to generate onion service files on this system
-onion_service_dir="hidden_service" # Base name of the onion services
-onion_service_type="stealth" # Use: normal, stealth or nextgen
-onion_service_stealth_clients="client1,client2,client3" # Number of clients
-internal_server="172.16.1.2" # An optional server
-
-# A list of onion services that will be generated on this system and
-# copied to the OpenBSD system. This is useful if you want to have an
-# external copy of the onion service files.
-# Tor will only use the externally generated onion service files if
-# you also enable the onion service in the Tor configuration in
-# install.site. The name and configuration need to match.
-# There is little harm in generating a couple of extra onion services
-# as long as you don't enable them in the Tor configuration.
-# Tip: Use the same naming scheme as install.site
-onion_service_name="${onion_service_dir} \
-                    ${onion_service_dir}_www \
-                    ${onion_service_dir}_ssh_${internal_server} \
-                    ${onion_service_dir}_www_${internal_server} \
-                    ${onion_service_dir}_btc_p2p_${internal_server} \
-                    ${onion_service_dir}_btc_rpc_${internal_server} \
-                    ${onion_service_dir}_xmr_p2p_${internal_server} \
-                    ${onion_service_dir}_xmr_rpc_${internal_server}"
-
 
 # Don't run as root
 if [ $(id -u) = '0' ]; then
   echo "ERROR: Don't run this script as root."
-  echo "Please fix this and run the script again."
-  exit 1
-fi
-
-# Don't run the script from the Tor Browser directory
-pwd_dir="$(pwd)"
-if [ "${pwd_dir}" = '/home/amnesia/Tor Browser' ]; then
-  echo "ERROR: Don't run this script from the ${pwd_dir} directory."
-  echo "Please fix this and run the script again."
-  exit 1
-fi
-
-# Set a correct onion service type
-if [ ! "${onion_service_type}" = "normal" ] &&
-   [ ! "${onion_service_type}" = "stealth" ] &&
-   [ ! "${onion_service_type}" = "nextgen" ]; then
-  echo "ERROR: ${onion_service_type} is not a valid onion service type."
   echo "Please fix this and run the script again."
   exit 1
 fi
@@ -104,18 +61,6 @@ if ! cp "${template_file}" "${custom_iso_dir}"; then
   echo "ERROR: Failed to copy ${template_file} to the ${custom_iso_dir} directory."
   echo "Please diagnose the problem and run the script again."
   exit 1
-fi
-
-# Check if existing onion service backups need to be imported
-if "${onion_service_import}"; then
-  if [ -d "${onion_service_dir}" ]; then
-    cp -r "${onion_service_dir}"* "${custom_iso_dir}"
-  else
-    echo "ERROR: Onion service backup import is enabled,"
-    echo "but no onion service backup is found with the name: ${onion_service_dir}"
-    echo "Please fix this and run the script again."
-    exit 1
-  fi
 fi
 
 # Copy firmware directory
@@ -237,17 +182,6 @@ if ! wget -O index-packages.txt https://$(random_mirror)/pub/OpenBSD/"${openbsd_
   exit 1
 fi
 
-# Obtain the filename of the tor package
-tor_package=$( grep -o ' tor-[0-9]\.[0-9]\.[0-9]\.[0-9p]\{1,\}\.tgz' index-packages.txt |
-               sed 's/ //')
-
-# Check output tor_package
-if [ $( echo -n "${tor_package}" | grep -c 'tor-') -ne 1 ]; then
-  echo "ERROR: Invalid filename for the Tor package."
-  echo "Please diagnose the problem and run the script again."
-  exit 1
-fi
-
 # Obtain the filename of the libevent package
 libevent_package=$( grep -o ' libevent-[0-9]\.[0-9]\.[0-9p]\{1,\}\.tgz' index-packages.txt |
                     sed 's/ //')
@@ -267,7 +201,7 @@ if ! wget -O SHA256-packages https://$(random_mirror)/pub/OpenBSD/"${openbsd_rel
 fi
 
 # Download package files
-for i in "${tor_package}" "${libevent_package}"; do
+for i in "${libevent_package}"; do
   if ! wget -O $i https://$(random_mirror)/pub/OpenBSD/"${openbsd_release}"/packages/"${system_architecture}"/$i; then
     echo "ERROR: Failed to download $i."
     echo "Please diagnose the problem and run the script again."
@@ -276,7 +210,7 @@ for i in "${tor_package}" "${libevent_package}"; do
 done
 
 # Verify checksum of the packages. SHA256sum-packages is base64.
-for i in "${tor_package}" "${libevent_package}"; do
+for i in "${libevent_package}"; do
   if ! openssl sha256 -binary $i |
        openssl base64 |
        grep -q -f - SHA256-packages; then
@@ -313,55 +247,6 @@ if ! bsdtar -C "${custom_iso_dir_extracted}" -xf "${iso_filename}"; then
   exit 1
 fi
 
-# Create cryptographic seeds
-for i in 1 2; do
-  echo "Creating cryptographic seed $i. This may take a while."
-  echo "Move your mouse to generate extra entropy."
-  dd if=/dev/random of=custom-random.seed$i bs=65536 count=1 iflag=fullblock status=none
-  sleep 15
-done
-
-# Generate Tor .onion service files on this system
-if "${onion_service_create}"; then
-  pkill -u $(id -u) ^tor$ || true
-  sleep 5
-  for i in ${onion_service_name}; do
-    if [ -d $i ]; then
-      echo "Will not generate onion service $i. Directory already exists."
-      echo
-    else
-      if [ "${onion_service_type}" = "normal" ]; then
-        tor --hiddenservicedir $i \
-            --hiddenserviceport 80 \
-            --disablenetwork 1 \
-            --ignore-missing-torrc \
-            -f emptyfile \
-            --quiet &
-        echo "Generating normal onion service: $i"
-      elif [ "${onion_service_type}" = "stealth" ]; then
-        tor --hiddenservicedir $i \
-            --hiddenserviceport 80 \
-            --hiddenserviceauthorizeclient "stealth ${onion_service_stealth_clients}" \
-            --disablenetwork 1 \
-            --ignore-missing-torrc \
-            -f emptyfile \
-            --quiet &
-        echo "Generating stealth onion service: $i"
-      elif [ "${onion_service_type}" = "nextgen" ]; then
-        tor --hiddenservicedir $i \
-            --hiddenserviceport 80 \
-            --hiddenserviceversion 3 \
-            --disablenetwork 1 \
-            --ignore-missing-torrc \
-            -f emptyfile \
-            --quiet &
-        echo "Generating next generation v3 onion service: $i"
-      fi
-    sleep 10
-    pkill -u $(id -u) ^tor$
-    fi
-  done
-fi
 
 # Create siteXX.tgz archive for the custom iso
 if [ -d "${onion_service_dir}" ] &&
