@@ -10,6 +10,10 @@ echo ""
 echo "### CUSTOM INSTALL SCRIPT ###"
 echo ""
 
+echo $message
+echo $message >/root/from-install.site
+ls -al /etc >/root/ls-etc-install.site
+
 #################################
 ### PF FIREWALL CONFIGURATION ###
 #################################
@@ -41,7 +45,9 @@ __EOF
 
 cat <<'__EOF'>> /etc/rc.firsttime
 
+message = "howdy from /etc/rc.firsttime"
 logger $message
+echo $message >/root/from_rc.firsttime"
 
 # Remove /etc/rc.firsttime.run
 if [[ -f /etc/rc.firsttime.run ]]; then

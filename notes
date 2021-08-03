@@ -1,0 +1,44 @@
+## notes on changes
+
+## modify to run under openbsd
+- grep->ggrep 
+- shuf->gshuf
+- sha256sum->gsha256sum
+- bsdtar 
+- genisofs->mkisofs
+
+## add required packages
+`doas pkg_add py3-pip wget ggrep coreutils libarchive cdrtools` 
+
+change genisofs to mkisofs
+
+
+## creating a custom bsd.rd to include auto_install.conf
+
+installing openbsd sources:
+
+download tarballs from mirror 
+  src.tar.gz
+  sys.tar.gz
+
+extract in /usr/src
+
+create /dest per instructions under "Making a Release"
+ https://www.openbsd.org/faq/faq5.html#Release
+
+## package list from dev/test on OpenBSD 6.9
+```
+cdrtools-3.00p1     ISO 9660 filesystem and CD/DVD/BD creation tools
+coreutils-8.32p0    file, shell and text manipulation utilities
+geteltorito-0.6     el torito boot image extractor
+ggrep-3.6           GNU versions of grep pattern matching utilities
+git-2.31.1          distributed version control system
+intel-firmware-20210608v0 microcode update binaries for Intel CPUs
+libarchive-3.5.1    multi-format archive and compression library
+pkglocatedb-1.5     database of packages for use with locate(1)
+pv-1.6.6            monitor the progress of data through a pipeline
+py3-pip-20.3.4      tool for installing Python packages
+python3-3.8p0       meta-package to install the current version of python 3
+quirks-3.633        exceptions to pkg_add rules
+wget-1.20.3p3       retrieve files from the web via HTTP, HTTPS and FTP
+```
